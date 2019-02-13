@@ -44,12 +44,12 @@ class SHA256CTX(iv: Seq[BigInt], messageBlock: Seq[BigInt], state: Seq[BigInt], 
     var g = s(6)
     var h = s(7)
 
-    var s0 = (_rotr(a,2) ^ _rotr(a , 13) ^ _rotr(a,22))
-    var maj = ((a & b) ^ (a & c) ^ (b & c))
-    var t2 = (s0 + maj)&BigInt("ffffffff",16)
-    var s1 = (_rotr(e,6) ^ _rotr(e , 11) ^ _rotr(e , 25))
-    var ch = ((e & f) ^ ((~e) & g))
-    var t1 = (h + s1 + ch + constant.k(round) + messageBlock(round))&BigInt("ffffffff",16)
+    val s0 = (_rotr(a,2) ^ _rotr(a , 13) ^ _rotr(a,22))
+    val maj = ((a & b) ^ (a & c) ^ (b & c))
+    val t2 = (s0 + maj)&BigInt("ffffffff",16)
+    val s1 = (_rotr(e,6) ^ _rotr(e , 11) ^ _rotr(e , 25))
+    val ch = ((e & f) ^ ((~e) & g))
+    val t1 = (h + s1 + ch + constant.k(round) + messageBlock(round))&BigInt("ffffffff",16)
     h = g
     g = f
     f = e
@@ -64,11 +64,11 @@ class SHA256CTX(iv: Seq[BigInt], messageBlock: Seq[BigInt], state: Seq[BigInt], 
 
 
   private def genFinal(): SHA256CTX = {
-    var j:ListBuffer[BigInt]=ListBuffer.fill(8)(0)
+    val j:ListBuffer[BigInt]=ListBuffer.fill(8)(0)
 
 
     require(round == 63)
-    var s=compress(state)
+    val s=compress(state)
 
     for(i<- 0 to 7){
       j(i)=(s(i)+iv(i))&BigInt("ffffffff",16)
@@ -79,13 +79,13 @@ class SHA256CTX(iv: Seq[BigInt], messageBlock: Seq[BigInt], state: Seq[BigInt], 
   }
 
   def getJ:Seq[BigInt]={
-    var l =iv
+    val l =iv
     l
   }
 
   def nextRound: SHA256CTX = {
     if (round < 63){
-      var s= round+1
+      val s= round+1
       new SHA256CTX(iv, messageBlock, compress(state), s)
     }
     else
@@ -102,9 +102,10 @@ object SHA256Model {
   def generateChunks(message: Seq[BigInt]): Seq[Seq[BigInt]]={
 
     //长度
-    var l=message.length*32
-    var s:BigInt=BigInt(l.toHexString,16)
-    var b: ListBuffer[BigInt]=ListBuffer.fill(2)(0)
+    val l=message.length*32
+    val s:BigInt=BigInt(l.toHexString,16)
+    println(s)
+    val b: ListBuffer[BigInt]=ListBuffer.fill(2)(0)
     var f=s.toString(16).toString
     for(i<- f.length+1 to 16){
       f="0"+f
@@ -113,7 +114,7 @@ object SHA256Model {
     b(1)=BigInt(f.substring(8,16),16)
 
     //补位
-    var a:ListBuffer[BigInt]=ListBuffer.fill(message.length+18)(0)
+    val a:ListBuffer[BigInt]=ListBuffer.fill(message.length+18)(0)
     if(message!=null){
       for(i<-message.indices){
         a(i)= message(i)
@@ -121,12 +122,15 @@ object SHA256Model {
     }
     a(message.length)=BigInt("80000000",16)
     var padlen=0
-    if (message.length*4< 56){
-      padlen = 55 - message.length*4
+    var r=message.length*4 & 0x3F
+    println(r)
+    if (r< 56){
+      padlen = 55 - r
     }
     else{
-      padlen = 119 - message.length*4
+      padlen = 119 - r
     }
+
     for(i<-1 to padlen/4){
       a(message.length+i)=BigInt("00000000",16)
     }
@@ -136,7 +140,7 @@ object SHA256Model {
     for(i<- 0 to a.length/16-1){
      var s= a.slice(i*16,(i+1)*16)
     }
-    var m:ListBuffer[ListBuffer[BigInt]]=ListBuffer.fill(a.length/16)(ListBuffer.fill(16)(0))
+    val m:ListBuffer[ListBuffer[BigInt]]=ListBuffer.fill(a.length/16)(ListBuffer.fill(16)(0))
     for(i<- 0 to a.length/16-1){
       m(i)= a.slice(i*16,((i+1)*16))
     }
@@ -155,8 +159,8 @@ object SHA256Model {
       m(i)=chunk(i)
     }
     for(i<-16 to 63){
-      var s0:BigInt =(_rotr(m(i-15),7)) ^ (_rotr(m(i-15),18)) ^(m(i-15) >> 3)&BigInt("ffffffff",16)
-      var s1:BigInt= (_rotr(m(i-2),17))^(_rotr(m(i-2),19))^(m(i-2) >> 10)&BigInt("ffffffff",16)
+      val s0:BigInt =(_rotr(m(i-15),7)) ^ (_rotr(m(i-15),18)) ^(m(i-15) >> 3)&BigInt("ffffffff",16)
+      val s1:BigInt= (_rotr(m(i-2),17))^(_rotr(m(i-2),19))^(m(i-2) >> 10)&BigInt("ffffffff",16)
       m(i)=(m(i-16)+s0+m(i-7)+s1)&BigInt("ffffffff",16)
     }
     m
@@ -178,31 +182,35 @@ object SHA256Model {
     )
   }
 
-  def main(args: Array[String]): Unit = {
+  def end(end: Seq[BigInt]): String = {
 
-   var a:Seq[BigInt]=Seq.fill(22)("00000000").map(BigInt(_,16))
-    val l:Int=a.length*8*4;
+    val a:Seq[BigInt]=end
     val c=generateChunks(a)
-    var n:ListBuffer[BigInt]=ListBuffer.fill(8)(0)
+    val n:ListBuffer[BigInt]=ListBuffer.fill(8)(0)
     for(i<- 0 to 7){
        n(i)=constant.h(i)
     }
     for (i<- 0 to c.length-1){
-      var b=extend(c(i))
-      var s=new SHA256CTX(n,b,n,0)
+      var s=new SHA256CTX(n,extend(c(i)),n,0)
       for(i<-1 to 64){
         s = s.nextRound
       }
-      var o:Seq[BigInt]=s.getJ
+      val o:Seq[BigInt]=s.getJ
       for(i<- 0 to 7){
         n(i)=o(i)
       }
     }
-    var k:ListBuffer[String]=ListBuffer.fill(8)("")
+    val k:ListBuffer[String]=ListBuffer.fill(8)("")
     for(i<- 0 to 7){
       k(i)=String.format("%08x",BigInteger.valueOf(n(i).toLong))
     }
-    println(k(0)+k(1)+k(2)+k(3)+k(4)+k(5)+k(6)+k(7))
+    k(0)+k(1)+k(2)+k(3)+k(4)+k(5)+k(6)+k(7)
 
+  }
+
+
+  def main(args: Array[String]): Unit = {
+    val s=end(Seq.fill(90)("fc122313").map(BigInt(_,16)))
+    print(s)
   }
 }
