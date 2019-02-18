@@ -1,7 +1,5 @@
 import java.math.BigInteger
 
-import scala.collection.mutable.ListBuffer
-
 case class Constant(
                      h: Seq[BigInt] = Seq(
                        // Initialize hash states:
@@ -65,13 +63,10 @@ class SHA256CTX(iv: Seq[BigInt], messageBlock: Seq[BigInt], state: Seq[BigInt], 
 
 
   private def genFinal(): SHA256CTX = {
-    val j: ListBuffer[BigInt] = ListBuffer.fill(8)(0)
     require(round == 63)
     val s = compress(state)
 
-    for (i <- 0 to 7) {
-      j(i) = (s(i) + iv(i)) & BigInt("ffffffff", 16)
-    }
+    val j: Seq[BigInt] = for (i <- 0 to 7) yield (s(i) + iv(i)) & BigInt("ffffffff", 16)
 
     new SHA256CTX(j, messageBlock, s, 0)
   }
@@ -101,38 +96,17 @@ object SHA256Model {
 
     //长度
     val s: BigInt = BigInt.int2bigInt(message.length) * 32
-    val b: ListBuffer[BigInt] = ListBuffer.fill(2)(0)
-    b(0) = s >> 32 & BigInt("ffffffff", 16)
-    b(1) = s & BigInt("ffffffff", 16)
-
+    val b: Seq[BigInt] = Seq(s >> 32 & BigInt("ffffffff", 16), s & BigInt("ffffffff", 16))
     //补位
-    val a: ListBuffer[BigInt] = ListBuffer.fill(message.length + 18)(0)
-    if (message != null) {
-      for (i <- message.indices) {
-        a(i) = message(i)
-      }
+    val r = message.length % 16
+    val padLen = if (r < 13) {
+      13 - r
+    } else {
+      29 - r
     }
-    a(message.length) = BigInt("80000000", 16)
-    var padLen = 0
-    val r = message.length * 4 & 0x3F
-    if (r < 56) {
-      padLen = 55 - r
-    }
-    else {
-      padLen = 119 - r
-    }
-
-    for (i <- 1 to padLen / 4) {
-      a(message.length + i) = BigInt("00000000", 16)
-    }
-    a(message.length + padLen / 4 + 1) = b(0)
-    a(message.length + padLen / 4 + 2) = b(1)
+    val a = message ++: Seq(BigInt("80000000", 16)) ++: Seq.fill(padLen)(BigInt("00000000", 16)) ++: b
     //切片
-
-    val m: ListBuffer[ListBuffer[BigInt]] = ListBuffer.fill(a.length / 16)(ListBuffer.fill(16)(0))
-    for (i <- 0 until a.length / 16) {
-      m(i) = a.slice(i * 16, (i + 1) * 16)
-    }
+    val m: Seq[Seq[BigInt]] = for (i <- 0 until a.length / 16) yield a.slice(i * 16, (i + 1) * 16)
     m
   }
 
@@ -144,14 +118,11 @@ object SHA256Model {
     * @return a full 64 sized Seq[BigInt] called messageBlock
     */
   def extend(chunk: Seq[BigInt]): Seq[BigInt] = {
-    val m: ListBuffer[BigInt] = ListBuffer.fill(64)(0)
-    for (i <- 0 to 15) {
-      m(i) = chunk(i)
-    }
+    var m: Seq[BigInt] = chunk
     for (i <- 16 to 63) {
       val s0: BigInt = _rotr(m(i - 15), 7) ^ _rotr(m(i - 15), 18) ^ (m(i - 15) >> 3) & BigInt("ffffffff", 16)
       val s1: BigInt = _rotr(m(i - 2), 17) ^ _rotr(m(i - 2), 19) ^ (m(i - 2) >> 10) & BigInt("ffffffff", 16)
-      m(i) = (m(i - 16) + s0 + m(i - 7) + s1) & BigInt("ffffffff", 16)
+      m = m ++: Seq((m(i - 16) + s0 + m(i - 7) + s1) & BigInt("ffffffff", 16))
     }
     m
   }
@@ -175,31 +146,23 @@ object SHA256Model {
 
     val a: Seq[BigInt] = end
     val c = generateChunks(a)
-    val n: ListBuffer[BigInt] = ListBuffer.fill(8)(0)
-    for (i <- 0 to 7) {
-      n(i) = constant.h(i)
-    }
+    var digest=constant.h
+
     for (i <- c.indices) {
-      var s = new SHA256CTX(n, extend(c(i)), n, 0)
+      var s = new SHA256CTX(digest, extend(c(i)), digest, 0)
       for (i <- 1 to 64) {
         s = s.nextRound
       }
       val o: Seq[BigInt] = s.getJ
-      for (i <- 0 to 7) {
-        n(i) = o(i)
-      }
+     digest = for (i <- 0 to 7) yield o(i)
     }
-    val k: ListBuffer[String] = ListBuffer.fill(8)("")
-    for (i <- 0 to 7) {
-      k(i) = String.format("%08x", BigInteger.valueOf(n(i).toLong))
-    }
+    val k: Seq[String] = for (i <- 0 to 7) yield String.format("%08x", BigInteger.valueOf(digest(i).toLong))
     k(0) + k(1) + k(2) + k(3) + k(4) + k(5) + k(6) + k(7)
-
   }
 
 
   def main(args: Array[String]): Unit = {
-    val s = end(Seq.fill(30)("0001dc0d").map(BigInt(_, 16)))
+    val s = end(Seq.fill(30)("0").map(BigInt(_, 16)))
     println(s)
   }
 }
